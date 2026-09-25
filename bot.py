@@ -2,6 +2,10 @@ import asyncio
 import os
 import tempfile
 import urllib.request
+import json
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from functools import wraps
 
 from dotenv import load_dotenv
@@ -65,6 +69,73 @@ GROUP_TITLE = "MM Group | @aerivue"
 GROUP_ABOUT = "Please Make sure you check the username twice before dealing."
 
 SESSION_NAME = "mm_userbot_session"
+
+# Render / Railway / other hosting health server.
+# Render provides PORT automatically. Locally it defaults to 8080.
+HOST = "0.0.0.0"
+PORT = int(os.getenv("PORT", "8080"))
+
+
+# ============================================================
+# WEB HEALTH / STATUS SERVER
+# ============================================================
+
+START_TIME = datetime.now(timezone.utc)
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def _send_json(self, status_code, payload):
+        body = json.dumps(payload).encode("utf-8")
+
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        if self.path in ("/", "/health", "/healthz", "/status"):
+            self._send_json(
+                200,
+                {
+                    "status": "ok",
+                    "service": "MM Userbot + OGU Bot + Crypto Bot",
+                    "message": "Bot service is running",
+                    "time": datetime.now(timezone.utc).isoformat(),
+                    "uptime_started": START_TIME.isoformat(),
+                    "port": PORT,
+                },
+            )
+            return
+
+        self._send_json(
+            404,
+            {
+                "status": "not_found",
+                "message": "Use /health or /status",
+            },
+        )
+
+    def log_message(self, format, *args):
+        # Keep hosting logs clean.
+        print(f"[WEB] {self.address_string()} - {format % args}")
+
+
+def start_health_server():
+    server = ThreadingHTTPServer((HOST, PORT), HealthHandler)
+
+    thread = Thread(
+        target=server.serve_forever,
+        name="health-server",
+        daemon=True,
+    )
+    thread.start()
+
+    print(f"[WEB] Health server listening on {HOST}:{PORT}")
+    print(f"[WEB] Health endpoint: /health")
+
+    return server
 
 
 # ============================================================
@@ -702,6 +773,8 @@ async def stop_ptb_app(app, name):
 
 
 async def main():
+    health_server = start_health_server()
+
     print("=" * 60)
     print("MM USERBOT + OGU BOT + CRYPTO BOT")
     print("=" * 60)
@@ -750,6 +823,13 @@ async def main():
 
         if client.is_connected():
             await client.disconnect()
+
+        try:
+            health_server.shutdown()
+            health_server.server_close()
+            print("[WEB] Health server stopped")
+        except Exception as e:
+            print(f"[WEB] Shutdown error: {e}")
 
         print("[SYSTEM] Shutdown complete")
 
