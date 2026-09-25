@@ -10,7 +10,7 @@ from functools import wraps
 
 from dotenv import load_dotenv
 
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, utils
 from telethon.tl.functions.channels import (
     CreateChannelRequest,
     EditAdminRequest,
@@ -163,6 +163,11 @@ if not ADMIN_USER_ID:
 # ============================================================
 
 client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
+
+# PTB Crypto Bot application instance.
+# The Telethon userbot uses this to send the Crypto BOT message first,
+# then sends/pins FIRST_MESSAGE only after that send has completed.
+crypto_app_instance = None
 
 MEMBER_RIGHTS = ChatBannedRights(
     until_date=None,
@@ -402,26 +407,7 @@ async def mm_handler(event):
         await asyncio.sleep(1)
 
         # ----------------------------------------------------
-        # 7. SEND + PIN FIRST MESSAGE
-        # ----------------------------------------------------
-        msg = await client.send_message(
-            group_entity,
-            FIRST_MESSAGE,
-            parse_mode="md",
-        )
-
-        try:
-            await client.pin_message(
-                group_entity,
-                msg,
-                notify=False,
-            )
-            print("[MM] First message pinned")
-        except Exception as e:
-            print(f"[MM] Pin failed: {e}")
-
-        # ----------------------------------------------------
-        # 8. EXPORT REAL INVITE LINK
+        # 7. EXPORT REAL INVITE LINK
         # ----------------------------------------------------
         try:
             invite = await client(
@@ -432,13 +418,53 @@ async def mm_handler(event):
 
             real_link = invite.link
 
-            # Temporary helper message.
-            # Crypto BOT detects this and replaces it with a
-            # clean forwarded-link message.
-            await client.send_message(
-                group_entity,
-                f"CRYPTO_LINK::{real_link}",
+            # IMPORTANT ORDER:
+            # 1) Crypto BOT message is sent FIRST.
+            # 2) FIRST_MESSAGE is sent SECOND.
+            # 3) FIRST_MESSAGE is pinned SECOND.
+            #
+            # Do NOT use a helper "CRYPTO_LINK::..." message here.
+            # That helper introduced a race between Telethon and the
+            # Crypto Bot polling loop, which is why the order could
+            # appear reversed in Telegram.
+            if crypto_app_instance is None:
+                raise RuntimeError("Crypto BOT application is not ready")
+
+            bot_chat_id = utils.get_peer_id(group_entity)
+
+            crypto_text = (
+                "Please forward this link to the next person "
+                "who is involved in the deal.\n\n"
+                f"{real_link}"
             )
+
+            await crypto_app_instance.bot.send_message(
+                chat_id=bot_chat_id,
+                text=crypto_text,
+            )
+
+            print("[MM] Crypto BOT message sent FIRST")
+
+            # ------------------------------------------------
+            # 8. SEND + PIN ID / DEAL MESSAGE SECOND
+            # ------------------------------------------------
+            msg = await client.send_message(
+                group_entity,
+                FIRST_MESSAGE,
+                parse_mode="md",
+            )
+
+            print("[MM] ID / deal message sent SECOND")
+
+            try:
+                await client.pin_message(
+                    group_entity,
+                    msg,
+                    notify=False,
+                )
+                print("[MM] ID / deal message pinned")
+            except Exception as e:
+                print(f"[MM] Pin failed: {e}")
 
             # Success message in original chat.
             await client.send_message(
@@ -592,36 +618,11 @@ async def on_new_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --------------------------------------------------------
-    # CRYPTO_LINK helper from Telethon userbot
+    # The Crypto BOT invite-link message is sent directly by
+    # mm_handler so its position is deterministic.
+    #
+    # This handler is kept for the other Crypto BOT automations.
     # --------------------------------------------------------
-    if msg.text.startswith("CRYPTO_LINK::"):
-        real_link = msg.text.split(
-            "CRYPTO_LINK::",
-            1,
-        )[1].strip()
-
-        # Delete helper message.
-        try:
-            await msg.delete()
-        except Exception:
-            pass
-
-        # Send clean separate message.
-        text = (
-            "Please forward this link to the next person "
-            "who is involved in the deal.\n\n"
-            f"{real_link}"
-        )
-
-        try:
-            await context.bot.send_message(
-                chat_id=msg.chat_id,
-                text=text,
-            )
-        except Exception as e:
-            print(f"[CRYPTO] Link message error: {e}")
-
-        return
 
     # --------------------------------------------------------
     # After OGU /rec
@@ -782,22 +783,28 @@ async def main():
     ogu_app = build_ogu_app()
     crypto_app = build_crypto_app()
 
-    # Start the Telethon userbot.
-    print("[USERBOT] Starting...")
-    await client.start(phone=PHONE)
-    print("[USERBOT] Running")
+    # Make the running Crypto BOT application available to the
+    # Telethon /mm handler. This is what guarantees message order.
+    global crypto_app_instance
+    crypto_app_instance = crypto_app
 
-    # Start OGU bot.
+    # Start both Telegram Bot API apps FIRST.
+    # This guarantees the Crypto BOT is already running before
+    # the Telethon /mm handler can receive a command.
     await start_ptb_app(
         ogu_app,
         "OGU BOT",
     )
 
-    # Start Crypto bot.
     await start_ptb_app(
         crypto_app,
         "CRYPTO BOT",
     )
+
+    # Start the Telethon userbot AFTER the bots are ready.
+    print("[USERBOT] Starting...")
+    await client.start(phone=PHONE)
+    print("[USERBOT] Running")
 
     print("=" * 60)
     print("ALL SYSTEMS ONLINE")
