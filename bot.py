@@ -397,13 +397,13 @@ async def mm_handler(event):
         await promote_with_title(
             group_entity,
             ogu,
-            "OGU BOT",
+            "MM Assistant",
         )
 
         await promote_with_title(
             group_entity,
             crypto,
-            "Crypto BOT",
+            "Owner",
         )
 
         await asyncio.sleep(1)
@@ -435,9 +435,9 @@ async def mm_handler(event):
             bot_chat_id = utils.get_peer_id(group_entity)
 
             crypto_text = (
-                "Share the link below with anyone involved in this deal"
+                "Share the link below with anyone involved in this deal\n"
                 # "who is involved in the deal.\n\n"
-                f"{real_link}"
+                f"{real_link}\n\n"
                 "Only 2 people can join using this link"
             )
 
