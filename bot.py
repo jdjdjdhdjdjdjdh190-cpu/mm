@@ -64,7 +64,12 @@ CRYPTO_BOT_USERNAME = os.getenv(
 ).strip().lstrip("@")
 
 # Direct image URL supplied by you.
-GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
+# GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
+GROUP_PHOTO_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets",
+    "group_pfp.jpg"
+)
 
 GROUP_TITLE = "Sen's MM | @OfficialSensMM"
 GROUP_ABOUT = "Middleman service group - @seunko"
