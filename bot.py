@@ -57,16 +57,16 @@ OGU_BOT_TOKEN = os.getenv("OGU_BOT_TOKEN", "").strip()
 CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN", "").strip()
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "0"))
 
-OGU_BOT_USERNAME = os.getenv("OGU_BOT_USERNAME", "OGUMMdrobot").strip().lstrip("@")
+OGU_BOT_USERNAME = os.getenv("OGU_BOT_USERNAME", "SenheIper_bot").strip().lstrip("@")
 CRYPTO_BOT_USERNAME = os.getenv(
-    "CRYPTO_BOT_USERNAME", "aerivuecryptobot"
+    "CRYPTO_BOT_USERNAME", "SensGROUPCREATORBot"
 ).strip().lstrip("@")
 
 # Direct image URL supplied by you.
-GROUP_PHOTO_URL = "https://i.ibb.co/99Tdr8Qn/group-logo.jpg"
+GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
 
-GROUP_TITLE = "MM Group | @aerivue"
-GROUP_ABOUT = "Please Make sure you check the username twice before dealing."
+GROUP_TITLE = "Sen's MM | @OfficialSensMM"
+GROUP_ABOUT = "Middleman service group - @seunko"
 
 SESSION_NAME = "mm_userbot_session"
 
@@ -199,12 +199,14 @@ ADMIN_RIGHTS = ChatAdminRights(
     other=True,
 )
 
-FIRST_MESSAGE = """**Please State the deal exactly.**
+FIRST_MESSAGE = """Hey. Please state the terms of the deal.
 
-1. Who is the buyer and seller?
-2. What is the deal about?
-3. What crypto am i holding ? ( Bitcoin , litecoin , USDT Tether , ERC20 etc )
-4. State additional information if necessary."""
+- What is the deal?
+- Who is the buyer/seller?
+- What is the agreed price and which crypto?
+- Include any other relevant information.
+
+• i am not dealing below 50rs ~ @seunko"""
 
 
 # ============================================================
@@ -433,9 +435,10 @@ async def mm_handler(event):
             bot_chat_id = utils.get_peer_id(group_entity)
 
             crypto_text = (
-                "Please forward this link to the next person "
-                "who is involved in the deal.\n\n"
+                "Share the link below with anyone involved in this deal"
+                # "who is involved in the deal.\n\n"
                 f"{real_link}"
+                "Only 2 people can join using this link"
             )
 
             await crypto_app_instance.bot.send_message(
