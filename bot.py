@@ -431,12 +431,6 @@ async def mm_handler(event):
                     f"[PHOTO] Telegram upload/set failed: "
                     f"{type(e).__name__}: {e}"
                 )
-
-            finally:
-                try:
-                    os.remove(photo_path)
-                except OSError:
-                    pass
         else:
             print("[MM] Group photo skipped - download failed")
 
