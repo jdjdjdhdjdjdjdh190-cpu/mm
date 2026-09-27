@@ -2,6 +2,7 @@ import asyncio
 import os
 import tempfile
 import urllib.request
+import requests
 import json
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -157,6 +158,13 @@ if not CRYPTO_BOT_TOKEN:
 if not ADMIN_USER_ID:
     raise RuntimeError("ADMIN_USER_ID missing in .env")
 
+try:
+    import requests as _requests_check
+except ImportError:
+    raise RuntimeError(
+        "Missing dependency: requests. Install it with: pip install requests"
+    )
+
 
 # ============================================================
 # TELETHON USERBOT
@@ -215,31 +223,90 @@ FIRST_MESSAGE = """Hey. Please state the terms of the deal.
 
 async def download_group_photo():
     """
-    Downloads the configured image URL into a temporary file.
-    Returns the local path or None if the download fails.
+    Download the configured group photo reliably.
+
+    Uses a normal HTTP client with redirects, browser-like headers,
+    timeout and content validation. Returns a temporary local file path
+    or None when the download fails.
     """
+    path = None
+
     try:
-        suffix = ".jpg"
-        fd, path = tempfile.mkstemp(prefix="mm_group_", suffix=suffix)
-        os.close(fd)
+        url = GROUP_PHOTO_URL.strip()
+        if not url:
+            print("[PHOTO] GROUP_PHOTO_URL is empty")
+            return None
+
+        print(f"[PHOTO] Downloading: {url}")
+
+        def _download():
+            nonlocal path
+
+            headers = {
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/153.0 Safari/537.36"
+                ),
+                "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+            }
+
+            response = requests.get(
+                url,
+                headers=headers,
+                timeout=30,
+                allow_redirects=True,
+                stream=True,
+            )
+            response.raise_for_status()
+
+            content_type = (response.headers.get("Content-Type") or "").lower()
+            if "image/" not in content_type:
+                raise RuntimeError(
+                    f"URL did not return an image "
+                    f"(Content-Type: {content_type or 'unknown'})"
+                )
+
+            suffix = ".jpg"
+            if "png" in content_type:
+                suffix = ".png"
+            elif "webp" in content_type:
+                suffix = ".webp"
+            elif "jpeg" in content_type or "jpg" in content_type:
+                suffix = ".jpg"
+
+            fd, path = tempfile.mkstemp(prefix="mm_group_", suffix=suffix)
+            os.close(fd)
+
+            total = 0
+            with open(path, "wb") as file:
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if chunk:
+                        file.write(chunk)
+                        total += len(chunk)
+
+            if total <= 0:
+                raise RuntimeError("Downloaded image is empty")
+
+            print(
+                f"[PHOTO] Downloaded {total:,} bytes "
+                f"from {response.url}"
+            )
 
         loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _download)
 
-        await loop.run_in_executor(
-            None,
-            lambda: urllib.request.urlretrieve(GROUP_PHOTO_URL, path),
-        )
-
-        if os.path.exists(path) and os.path.getsize(path) > 0:
+        if path and os.path.exists(path) and os.path.getsize(path) > 0:
             return path
 
+    except Exception as e:
+        print(f"[PHOTO] Download failed: {type(e).__name__}: {e}")
+
+    if path:
         try:
             os.remove(path)
         except OSError:
             pass
-
-    except Exception as e:
-        print(f"[PHOTO] Download failed: {e}")
 
     return None
 
@@ -338,7 +405,12 @@ async def mm_handler(event):
 
         if photo_path:
             try:
-                uploaded = await client.upload_file(photo_path)
+                print("[PHOTO] Uploading group photo to Telegram...")
+
+                uploaded = await client.upload_file(
+                    photo_path,
+                    file_name=os.path.basename(photo_path),
+                )
 
                 await client(
                     EditPhotoRequest(
@@ -347,10 +419,13 @@ async def mm_handler(event):
                     )
                 )
 
-                print("[MM] Group photo set")
+                print("[MM] Group photo set successfully")
 
             except Exception as e:
-                print(f"[MM] Photo upload: {e}")
+                print(
+                    f"[PHOTO] Telegram upload/set failed: "
+                    f"{type(e).__name__}: {e}"
+                )
 
             finally:
                 try:
@@ -358,7 +433,7 @@ async def mm_handler(event):
                 except OSError:
                     pass
         else:
-            print("[MM] Group photo skipped")
+            print("[MM] Group photo skipped - download failed")
 
         # ----------------------------------------------------
         # 5. GET + INVITE BOTH BOTS
