@@ -68,7 +68,7 @@ GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
 GROUP_TITLE = "Sen's MM | @OfficialSensMM"
 GROUP_ABOUT = "Middleman service group - @seunko"
 
-SESSION_NAME = "mm_userbot_session"
+SESSION_NAME = "new_user"
 
 # Render / Railway / other hosting health server.
 # Render provides PORT automatically. Locally it defaults to 8080.
