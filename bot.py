@@ -67,7 +67,7 @@ CRYPTO_BOT_USERNAME = os.getenv(
 # GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
 GROUP_PHOTO_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "assets",
+    "pic",
     "group_pfp.jpg"
 )
 
