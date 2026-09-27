@@ -510,7 +510,7 @@ async def mm_handler(event):
             bot_chat_id = utils.get_peer_id(group_entity)
 
             crypto_text = (
-                "Share the link below with anyone involved in this deal\n"
+                "Share the link below with anyone involved in this deal\n\n"
                 # "who is involved in the deal.\n\n"
                 f"{real_link}\n\n"
                 "Only 2 people can join using this link"
@@ -547,8 +547,8 @@ async def mm_handler(event):
             # Success message in original chat.
             await client.send_message(
                 event.chat_id,
-                "Please Join this Group and Send it to the next "
-                "person who is involved in the deal.\n\n"
+                "**Please Join this Group and Send it to the next** "
+                "**person who is involved in the deal.**\n\n"
                 f"{real_link}",
             )
 
