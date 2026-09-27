@@ -64,7 +64,7 @@ CRYPTO_BOT_USERNAME = os.getenv(
 ).strip().lstrip("@")
 
 # Direct image URL supplied by you.
-GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
+# GROUP_PHOTO_URL = "https://i.ibb.co/RG1CN62V/IMG-20260926-105259-497.jpg"
 GROUP_PHOTO_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "assets",
@@ -406,7 +406,7 @@ async def mm_handler(event):
         # ----------------------------------------------------
         # 4. GROUP PHOTO FROM URL
         # ----------------------------------------------------
-        photo_path = await download_group_photo()
+        photo_path = GROUP_PHOTO_PATH if os.path.isfile(GROUP_PHOTO_PATH) else None
 
         if photo_path:
             try:
