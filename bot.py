@@ -129,7 +129,12 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 
 def start_health_server():
-    server = ThreadingHTTPServer((HOST, PORT), HealthHandler)
+    try:
+        server = ThreadingHTTPServer((HOST, PORT), HealthHandler)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Could not bind Render PORT {PORT} on {HOST}: {exc}"
+        ) from exc
 
     thread = Thread(
         target=server.serve_forever,
@@ -237,7 +242,7 @@ async def download_group_photo():
     path = None
 
     try:
-        url = GROUP_PHOTO_URL.strip()
+        url = os.getenv("GROUP_PHOTO_URL", "").strip()
         if not url:
             print("[PHOTO] GROUP_PHOTO_URL is empty")
             return None
@@ -827,11 +832,20 @@ def build_crypto_app():
 async def start_ptb_app(app, name):
     await app.initialize()
     await app.start()
+    # Render-friendly long-polling configuration.
+    # The updater runs inside the same asyncio loop as Telethon.
     await app.updater.start_polling(
+        poll_interval=1.0,
+        timeout=30,
+        read_timeout=35,
+        write_timeout=35,
+        connect_timeout=35,
+        pool_timeout=10,
+        bootstrap_retries=-1,
         drop_pending_updates=True,
         allowed_updates=Update.ALL_TYPES,
     )
-    print(f"[{name}] polling started")
+    print(f"[{name}] polling started successfully")
 
 
 async def stop_ptb_app(app, name):
@@ -856,57 +870,52 @@ async def main():
     print("=" * 60)
     print("MM USERBOT + OGU BOT + CRYPTO BOT")
     print("=" * 60)
+    print(f"[WEB] HOST={HOST}")
+    print(f"[WEB] PORT={PORT}")
 
-    ogu_app = build_ogu_app()
-    crypto_app = build_crypto_app()
-
-    # Make the running Crypto BOT application available to the
-    # Telethon /mm handler. This is what guarantees message order.
-    global crypto_app_instance
-    crypto_app_instance = crypto_app
-
-    # Start both Telegram Bot API apps FIRST.
-    # This guarantees the Crypto BOT is already running before
-    # the Telethon /mm handler can receive a command.
-    await start_ptb_app(
-        ogu_app,
-        "OGU BOT",
-    )
-
-    await start_ptb_app(
-        crypto_app,
-        "CRYPTO BOT",
-    )
-
-    # Start the Telethon userbot AFTER the bots are ready.
-    print("[USERBOT] Starting...")
-    await client.start(phone=PHONE)
-    print("[USERBOT] Running")
-
-    print("=" * 60)
-    print("ALL SYSTEMS ONLINE")
-    print("Use /mm from your Telegram user account.")
-    print("=" * 60)
+    ogu_app = None
+    crypto_app = None
 
     try:
+        ogu_app = build_ogu_app()
+        crypto_app = build_crypto_app()
+
+        # Make the running Crypto BOT application available to the
+        # Telethon /mm handler. This guarantees message order.
+        global crypto_app_instance
+        crypto_app_instance = crypto_app
+
+        # Start both Bot API applications before Telethon.
+        await start_ptb_app(ogu_app, "OGU BOT")
+        await start_ptb_app(crypto_app, "CRYPTO BOT")
+
+        # Start the Telethon userbot after both bot polling loops are ready.
+        print("[USERBOT] Starting...")
+        await client.start(phone=PHONE)
+        print("[USERBOT] Running")
+
+        print("=" * 60)
+        print("ALL SYSTEMS ONLINE")
+        print("Use /mm from your Telegram user account.")
+        print("=" * 60)
+
         # Keep the same asyncio loop alive for all 3 clients.
         await client.run_until_disconnected()
 
     finally:
         print("[SYSTEM] Shutting down...")
 
-        await stop_ptb_app(
-            crypto_app,
-            "CRYPTO BOT",
-        )
+        if crypto_app is not None:
+            await stop_ptb_app(crypto_app, "CRYPTO BOT")
 
-        await stop_ptb_app(
-            ogu_app,
-            "OGU BOT",
-        )
+        if ogu_app is not None:
+            await stop_ptb_app(ogu_app, "OGU BOT")
 
         if client.is_connected():
-            await client.disconnect()
+            try:
+                await client.disconnect()
+            except Exception as e:
+                print(f"[USERBOT] Disconnect error: {e}")
 
         try:
             health_server.shutdown()
