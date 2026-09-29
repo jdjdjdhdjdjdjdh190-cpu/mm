@@ -123,6 +123,22 @@ class HealthHandler(BaseHTTPRequestHandler):
             },
         )
 
+    def do_HEAD(self):
+        if self.path in ("/", "/health", "/healthz", "/status"):
+            body = json.dumps({
+                "status": "ok",
+                "service": "MM Userbot + OGU Bot + Crypto Bot",
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def log_message(self, format, *args):
         # Keep hosting logs clean.
         print(f"[WEB] {self.address_string()} - {format % args}")
@@ -834,13 +850,12 @@ async def start_ptb_app(app, name):
     await app.start()
     # Render-friendly long-polling configuration.
     # The updater runs inside the same asyncio loop as Telethon.
+    # python-telegram-bot 22.x removed the old read/write/connect/pool
+    # timeout arguments from Updater.start_polling(). Keep only the
+    # arguments supported by PTB 22.x.
     await app.updater.start_polling(
         poll_interval=1.0,
         timeout=30,
-        read_timeout=35,
-        write_timeout=35,
-        connect_timeout=35,
-        pool_timeout=10,
         bootstrap_retries=-1,
         drop_pending_updates=True,
         allowed_updates=Update.ALL_TYPES,
