@@ -74,7 +74,7 @@ GROUP_PHOTO_PATH = os.path.join(
 GROUP_TITLE = "Sen's MM | @OfficialSensMM"
 GROUP_ABOUT = "Middleman service group - @seunko"
 
-SESSION_NAME = "new_user"
+SESSION_NAME = "my_session"
 
 # Render / Railway / other hosting health server.
 # Render provides PORT automatically. Locally it defaults to 8080.
